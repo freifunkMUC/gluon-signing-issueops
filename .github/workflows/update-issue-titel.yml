@@ -4,9 +4,14 @@ on:
   issues:
     types: [opened]
 
+permissions: {}
+
 jobs:
   update-title:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
 
     steps:
       - name: Check out repository
@@ -21,9 +26,11 @@ jobs:
       - name: Extract version and channel
         id: extract
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          FORM_JSON: ${{ steps.form.outputs.json }}
         with:
           script: |
-            const issue_data = ${{ steps.form.outputs.json }};
+            const issue_data = JSON.parse(process.env.FORM_JSON);
             const version = issue_data.version || null;
             const channel = (issue_data.channel && issue_data.channel.length > 0) ? issue_data.channel[0] : null;
             core.setOutput('version', version);
@@ -31,12 +38,15 @@ jobs:
 
       - name: Update issue title placeholders
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        env:
+          VERSION: ${{ steps.extract.outputs.version }}
+          CHANNEL: ${{ steps.extract.outputs.channel }}
         with:
           script: |
             const title = context.payload.issue.title;
             let newTitle = title;
-            const version = '${{ steps.extract.outputs.version }}';
-            const channel = '${{ steps.extract.outputs.channel }}';
+            const version = process.env.VERSION;
+            const channel = process.env.CHANNEL;
 
             if (!version && !channel) {
               core.info('No version or channel found in issue form, skipping title update.');

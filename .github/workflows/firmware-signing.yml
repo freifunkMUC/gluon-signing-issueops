@@ -4,6 +4,8 @@ on:
   issue_comment:
     types: [created]
 
+permissions: {}
+
 concurrency:
   group: sign-manifest-${{ github.event.issue.number }}
   cancel-in-progress: false
@@ -63,9 +65,11 @@ jobs:
       - name: Validate issue data
         id: validate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          FORM_JSON: ${{ steps.form.outputs.json }}
         with:
           script: |
-            const issue_data = ${{ steps.form.outputs.json }}; // Valid JSON -> Valid JavaScript object
+            const issue_data = JSON.parse(process.env.FORM_JSON);
             if (!issue_data.version || !issue_data.channel || issue_data.channel.length === 0) {
               core.setFailed('Version or channel not found');
               return;
@@ -134,9 +138,9 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const version = ${{ toJSON(steps.validate.outputs.version) }};
-            const channel = ${{ toJSON(steps.validate.outputs.channel) }};
-            const signature = ${{ toJSON(steps.sign.outputs.signature) }};
+            const version = process.env.VERSION;
+            const channel = process.env.CHANNEL;
+            const signature = process.env.SIGNATURE;
             const baseUrl = process.env.FIRMWARE_BASE_URL;
             const manifestUrl = `${baseUrl}/${version}/sysupgrade/${channel}.manifest`;
 
@@ -159,6 +163,9 @@ jobs:
             })
         env:
           FIRMWARE_BASE_URL: ${{ vars.FIRMWARE_BASE_URL }}
+          VERSION: ${{ steps.validate.outputs.version }}
+          CHANNEL: ${{ steps.validate.outputs.channel }}
+          SIGNATURE: ${{ steps.sign.outputs.signature }}
 
       - name: Close issue
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
