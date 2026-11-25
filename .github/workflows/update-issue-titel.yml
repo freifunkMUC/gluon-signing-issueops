@@ -15,29 +15,39 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Parse issue form
         id: form
-        uses: issue-ops/parser@cb7e2e4e5da701aad0e23e718bc4c91d442ca8ba #v5.0.0
+        uses: issue-ops/parser@cb7e2e4e5da701aad0e23e718bc4c91d442ca8ba # v5.0.0
         with:
           issue-form-template: firmware-signing.yml
           body: ${{ github.event.issue.body }}
 
       - name: Extract version and channel
         id: extract
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           FORM_JSON: ${{ steps.form.outputs.json }}
         with:
           script: |
             const issue_data = JSON.parse(process.env.FORM_JSON);
-            const version = issue_data.version || null;
-            const channel = (issue_data.channel && issue_data.channel.length > 0) ? issue_data.channel[0] : null;
+            let version = issue_data.version || null;
+            let channel = (issue_data.channel && issue_data.channel.length > 0) ? issue_data.channel[0] : null;
+            if (version !== null && !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(version)) {
+              core.warning('Ignoring invalid version format.');
+              version = null;
+            }
+            if (channel !== null && !["stable", "testing", "experimental"].includes(channel)) {
+              core.warning('Ignoring invalid channel.');
+              channel = null;
+            }
             core.setOutput('version', version);
             core.setOutput('channel', channel);
 
       - name: Update issue title placeholders
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 #v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           VERSION: ${{ steps.extract.outputs.version }}
           CHANNEL: ${{ steps.extract.outputs.channel }}
@@ -55,10 +65,10 @@ jobs:
 
             // Ersetze {version} und {channel} im Titel, falls vorhanden
             if (version) {
-              newTitle = newTitle.replace(/\{version\}/gi, version);
+              newTitle = newTitle.replace(/\{version\}/gi, () => version);
             }
             if (channel) {
-              newTitle = newTitle.replace(/\{channel\}/gi, channel);
+              newTitle = newTitle.replace(/\{channel\}/gi, () => channel);
             }
 
             // Wenn sich der Titel ändert, aktualisiere das Issue
